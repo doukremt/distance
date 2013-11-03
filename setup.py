@@ -20,7 +20,7 @@ from os.path import join, dirname, abspath
 from distutils.core import setup, Extension
 
 
-with open(join(dirname(abspath(__file__)), "README.rst")) as f:
+with open(join(dirname(abspath(__file__)), "README.md")) as f:
     long_description = f.read()
 
 module = Extension('distance', sources=['distance.c'])
