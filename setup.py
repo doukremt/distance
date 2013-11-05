@@ -41,7 +41,7 @@ else:
 setup (
     name = 'Distance',
     version = '0.1.1',
-    description = 'Levenshtein and Hamming distance computation',
+    description = 'Utilities for computing similarities between sequences',
     long_description = long_description,
     author='Michaël Meyer',
     author_email='michaelnm.meyer@gmail.com',

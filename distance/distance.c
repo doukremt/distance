@@ -147,8 +147,11 @@ static PyObject * hamming(PyObject *self, PyObject *args, PyObject *kwargs)
 	if (dist == -1)
 		return NULL;
 	
-	if (do_normalize && (len1 != 0 || len2 != 0)) {
-		double normalized = dist / (double)len1;
+	if (do_normalize) {
+		if (len1 == 0 && len2 == 0)
+			return Py_BuildValue("f", 0.0);
+		double max_len = (len1 > len2 ? len1 : len2);
+		double normalized = dist / max_len;
 		return Py_BuildValue("d", normalized);
 	}
 	return Py_BuildValue("n", dist);
@@ -176,7 +179,6 @@ uni_levenshtein(PyObject *str1, PyObject *str2, Py_ssize_t len1, Py_ssize_t len2
 		len1 = len2;
 		str2 = temp_str;
 		len2 = temp_len;
-		Py_DECREF(temp_str);
 	}
 
 	ptr1 = PyUnicode_DATA(str1);
@@ -224,6 +226,7 @@ rich_levenshtein(PyObject *seq1, PyObject *seq2, Py_ssize_t len1, Py_ssize_t len
 		return len1;
 	}
 	
+	
 	if (len1 < len2) {
 		PyObject *temp_seq = seq1;
 		Py_ssize_t temp_len = len1;
@@ -231,7 +234,6 @@ rich_levenshtein(PyObject *seq1, PyObject *seq2, Py_ssize_t len1, Py_ssize_t len
 		len1 = len2;
 		seq2 = temp_seq;
 		len2 = temp_len;
-		Py_DECREF(temp_seq);
 	}
 		
 	column = (Py_ssize_t*) malloc((len1 + 1) * sizeof(Py_ssize_t));
@@ -291,7 +293,7 @@ static PyObject * levenshtein(PyObject *self, PyObject *args, PyObject *kwargs)
 	
 		len1 = PyUnicode_GET_LENGTH(arg1);
 		len2 = PyUnicode_GET_LENGTH(arg2);
-		
+
 		dist = uni_levenshtein(arg1, arg2, len1, len2);
 	}
 
@@ -328,7 +330,9 @@ static PyObject * levenshtein(PyObject *self, PyObject *args, PyObject *kwargs)
 	if (dist == -1)
 		return NULL;
 	
-	if (do_normalize && (len1 != 0 || len2 != 0)) {
+	if (do_normalize) {
+		if (len1 == 0 && len2 == 0)
+			return Py_BuildValue("f", 0.0);
 		double max_len = (len1 > len2 ? len1 : len2);
 		double normalized = dist / max_len;
 		return Py_BuildValue("d", normalized);
