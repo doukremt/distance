@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*- 
 
-# Distance - Levenshtein and Hamming distance computation
+# Distance - Utilities for comparing sequences
 # Copyright (C) 2013 Michaël Meyer
 
 # This program is free software: you can redistribute it and/or modify
@@ -16,24 +16,39 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-from os.path import join, dirname, abspath
+
+import os, sys
 from distutils.core import setup, Extension
 
+this_dir = os.path.dirname(os.path.abspath(__file__))
 
-with open(join(dirname(abspath(__file__)), "README.md")) as f:
+with open(os.path.join(this_dir, "README.md")) as f:
     long_description = f.read()
 
-module = Extension('distance', sources=['distance.c'])
+args = sys.argv[1:]
+
+if "--with-c" in args:
+	args.remove("--with-c")
+	if sys.version_info[:2] < (3, 3):
+		sys.stderr.write("Python 3.3+ is necessary for the C extension to work. " \
+			"Your version is %s\n" % sys.version)
+		sys.exit(1)
+	ext_modules = [Extension('distance.cdistance', sources=["distance/distance.c"])]
+else:
+	sys.stderr.write("notice: no C support available\n")
+	ext_modules = []
 
 setup (
     name = 'Distance',
-    version = '0.1',
+    version = '0.1.1',
     description = 'Levenshtein and Hamming distance computation',
     long_description = long_description,
     author='Michaël Meyer',
     author_email='michaelnm.meyer@gmail.com',
     url='https://github.com/doukremt/distance',
-    ext_modules = [module],
+    ext_modules = ext_modules,
+    script_args = args,
+    packages = ['distance'],
     classifiers=(
         'Intended Audience :: Developers',
         'Natural Language :: English',

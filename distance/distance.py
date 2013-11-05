@@ -26,11 +26,14 @@ def hamming(seq1, seq2, normalized=False):
 	The return value is an integer between 0 and the length of the sequences provided,
 	edge values included.
 	"""
-	if len(seq1) != len(seq2):
+	L = len(seq1)
+	if L != len(seq2):
 		raise ValueError("expected two strings of the same length")
+	if L == 0:
+		return L
 	dist = sum(c1 != c2 for c1, c2 in zip(seq1, seq2))
 	if normalized:
-		return dist / float(len(seq1))
+		return dist / float(L)
 	return dist
 
 
@@ -40,10 +43,12 @@ def levenshtein(seq1, seq2, normalized=False):
 	The return value is an integer between 0 and the longer sequence provided, edges included.
 	"""
 	len1, len2 = len(seq1), len(seq2)
+	if seq1 == seq2:
+		return 0
 	if len1 == 0:
-		return len2
+		return 1 if normalized else len2
 	if len2 == 0:
-		return len1
+		return 1 if normalized else len1
 	if len1 < len2:
 		len1, len2 = len2, len1
 		seq1, seq2 = seq2, seq1

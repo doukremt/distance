@@ -1,19 +1,30 @@
-distance - Levenshtein and Hamming distance computation
-=======================================================
+distance - Utilities for comparing sequences
+============================================
 
-This package provides facilities for computing Levenshtein and Hamming distance between arbitrary Python objects. It is only available for Python 3.3+.
+This package provides helpers for computing similarities between arbitrary sequences. Included metrics are:
+
+	* Levenshtein distance
+	* Hamming distance
+	* Jaccard distance
+	* Sorensen distance
+
+All distance computations are implemented in pure Python. Levenshtein and Hamming distances are also implemented in C.
 
 
 Installation
 ------------
 
-This is a C extension, so you need a C compiler available on your computer: typically Microsoft Visual C++ 2010 on Windows, and GCC on Mac and Linux. Python development files are also necessary to compile the package. On a Debian-like system, you can get all of these with:
+If you don't want to use the C extension, just unpack the archive and run:
 
-	$ apt-get install gcc python3.3-dev
+	# python setup.py install
 
-Then you can do:
+For the C extension to work, you need Python 3.3+, its headers files, and a C compiler (typically Microsoft Visual C++ 2010 on Windows, and GCC on Mac and Linux). On a Debian-like system, you can get all of these with:
 
-	$ python3.3 setup.py install
+	# apt-get install gcc python3.3-dev
+
+Then you should type:
+
+	# python3.3 setup.py install --with-c
 
 
 Usage
@@ -23,29 +34,42 @@ Fist import the module:
 
 	>>> import distance
 
-Two functions are provided: `levenshtein` and `hamming`. They both take two arguments, which are the objects to compare. Those objects can be of any type, as long as they support the sequence protocol: unicode strings, byte strings, lists, and tuples are ok. In case the objects provided are lists or tuples, they also should contain comparable objects.
+All functions provided take two arguments, which are the objects to compare. Arguments provided to `hamming` and `levenshtein` should support the sequence protocol: unicode strings, byte strings, lists, and tuples are ok. `jaccard` and `sorensen` use sets, so you can pass any iterable, at the condition that it is hashable.
 
-Typical use case is to compare single words for similarity, as in spelling correction softwares:
+Typical use case is to compare single words for similarity:
 
 	>>> distance.levenshtein("lenvestein", "levenshtein")
 	3
 	>>> distance.hamming("hamming", "hamning")
 	1
 
-Comparing lists of strings can also be useful for computing similarities between sentences, paragraphs, etc., in articles or books, as for plagiarism recognition:
+
+Comparing lists of strings can also be useful for computing similarities between sentences, paragraphs, etc.:
 
 	>>> sent1 = ['the', 'quick', 'brown', 'fox', 'jumps', 'over', 'the', 'lazy', 'dog']
 	>>> sent2 = ['the', 'lazy', 'fox', 'jumps', 'over', 'the', 'crazy', 'dog']
 	>>> distance.levenshtein(sent1, sent2)
 	3
 
-The above of course also works with numbers, etc.:
 
-	>>> distance.levenshtein([1,2,3], [1,3,2])
-	2
+To compare the results returned by the available metrics, a `normalize` keyword parameter can be supplied to `hamming` and `levenshtein`. If it evaluates to True, the return value will be a float between 0 and 1 inclusive, representing the similarity between the submitted sequences. 0 means identic, and 1 totally different:
+
+	>>> distance.levenshtein("decide", "resize", normalized=True)
+	0.5
+	>>> distance.hamming("decide", "resize", normalized=True)
+	0.5
+	>>> distance.sorensen("decide", "resize")
+	0.5555555555555556
+	>>> distance.jaccard("decide", "resize")
+	0.7142857142857143
+
+
+Have fun!
 
 
 Implementation details
 ----------------------
 
-Unicode strings are handled separately from the other sequence objects, in an efficient manner. Computing similarities between lists, tuples, and byte strings is likely to be slower, in particular for byte objects, which are internally converted to tuples.
+In the C implementation, unicode strings are handled separately from the other sequence objects, in an efficient manner. Computing similarities between lists, tuples, and byte strings is likely to be slower, in particular for byte objects, which are internally converted to tuples.
+
+05/11/13: Added Sorensen and Jaccard metrics, fixed memory issue in Levenshtein.
