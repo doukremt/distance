@@ -46,9 +46,9 @@ def levenshtein(seq1, seq2, normalized=False):
 	if seq1 == seq2:
 		return 0
 	if len1 == 0:
-		return 1 if normalized else len2
+		return 1.0 if normalized else len2
 	if len2 == 0:
-		return 1 if normalized else len1
+		return 1.0 if normalized else len1
 	if len1 < len2:
 		len1, len2 = len2, len1
 		seq1, seq2 = seq2, seq1
