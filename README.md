@@ -52,7 +52,7 @@ Comparing lists of strings can also be useful for computing similarities between
 	3
 
 
-To compare the results returned by the available metrics, a `normalize` keyword parameter can be supplied to `hamming` and `levenshtein`. If it evaluates to True, the return value will be a float between 0 and 1 inclusive, representing the similarity between the submitted sequences. 0 means identic, and 1 totally different:
+To compare the results returned by the available metrics, a `normalize` keyword parameter can be supplied to `hamming` and `levenshtein`. If it evaluates to True, the return value will be a float between 0 and 1 inclusive. 0 means identic, and 1 totally different:
 
 	>>> distance.levenshtein("decide", "resize", normalized=True)
 	0.5
