@@ -30,7 +30,7 @@ def hamming(seq1, seq2, normalized=False):
 	if L != len(seq2):
 		raise ValueError("expected two strings of the same length")
 	if L == 0:
-		return L
+		return 0.0 if normalized else 0
 	dist = sum(c1 != c2 for c1, c2 in zip(seq1, seq2))
 	if normalized:
 		return dist / float(L)
