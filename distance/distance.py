@@ -23,8 +23,9 @@ def hamming(seq1, seq2, normalized=False):
 	"""Compute the Hamming distance between the two sequences `seq1` and `seq2`.
 	Both should have the same length.
 	
-	The return value is an integer between 0 and the length of the sequences provided,
-	edge values included.
+	If `normalized` evaluates to `False`, the return value will be an integer between
+	0 and the length of the sequences provided, edge values included; otherwise, it
+	will be a float between 0 and 1 included.
 	"""
 	L = len(seq1)
 	if L != len(seq2):
@@ -40,7 +41,9 @@ def hamming(seq1, seq2, normalized=False):
 def levenshtein(seq1, seq2, normalized=False):
 	"""Compute the Levenshtein distance between the two sequences `seq1` and `seq2`.
 	
-	The return value is an integer between 0 and the longer sequence provided, edges included.
+	If `normalized` evaluates to `False`, the return value will be an integer between
+	0 and the length of the sequences provided, edge values included; otherwise, it
+	will be a float between 0 and 1 included.
 	"""
 	len1, len2 = len(seq1), len(seq2)
 	if seq1 == seq2:
@@ -67,8 +70,8 @@ def levenshtein(seq1, seq2, normalized=False):
 
 
 def jaccard(seq1, seq2):
-	"""Compute the Jaccard distance between the two sequences `seq1` and `seq2`. They
-	should contain hashable items, i. e.: not lists
+	"""Compute the Jaccard distance between the two sequences `seq1` and `seq2`.
+	They should contain hashable items.
 	
 	The return value is a float between 0 and 1. The lower the value, the closer the sequences.
 	"""
@@ -77,8 +80,8 @@ def jaccard(seq1, seq2):
 
 
 def sorensen(seq1, seq2):
-	"""Compute the Sorensen distance between the two sequences `seq1` and `seq2`. They
-	should contain hashable items, i. e.: not lists
+	"""Compute the Sorensen distance between the two sequences `seq1` and `seq2`.
+	They should contain hashable items.
 	
 	The return value is a float between 0 and 1. The lower the value, the closer the sequences.
 	"""
