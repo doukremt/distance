@@ -59,19 +59,20 @@ If a `normalized` keyword parameter is supplied to `hamming` or `levenshtein` an
 	>>> distance.hamming("decide", "resize", normalized=True)
 	0.5
 
-Jaccard and sorensen return a normalized value per default:
+`jaccard` and `sorensen` return a normalized value per default:
 
 	>>> distance.sorensen("decide", "resize")
 	0.5555555555555556
 	>>> distance.jaccard("decide", "resize")
 	0.7142857142857143
 
-Finally, there is a `quick_levenshtein` function, which computes the levenshtein distance between two strings up to a value of 2 included, and is quite faster than the classic Levenshtein implementation. The python version comes from [here](http://writingarchives.sakura.ne.jp/fastcomp), and has been rewritten in C. Also, an iterator type `iquick_levenshtein` is provided, which comes handy to filter from a long list of strings the ones that resemble a given one:
+Finally, there is a `quick_levenshtein` function, which computes the Levenshtein distance between two strings up to a value of 2 included, and is quite faster than the classic Levenshtein implementation. The python version comes from [here](http://writingarchives.sakura.ne.jp/fastcomp), and has been rewritten in C.
+
+Also, an iterator type `iquick_levenshtein` is provided, which comes handy to filter from a long list of strings the ones that resemble a given one:
 
 	>>> g = iquick_levenshtein("foo", ["fo", "bar", "foob", "foo", "foobaz"])
 	>>> sorted(g)
 	[(0, 'foo'), (1, 'fo'), (1, 'foob')]
-
 
 See the functions documentation (`help(funcname)`) for more details.
 
@@ -84,4 +85,5 @@ Implementation details
 In the C implementation, unicode strings are handled separately from the other sequence objects. Computing similarities between lists, tuples, and byte strings is likely to be slower.
 
 05/11/13: Added Sorensen and Jaccard metrics, fixed memory issue in Levenshtein.
+
 10/11/13: Added `quick_levenshtein` and `iquick_levenshtein`.
