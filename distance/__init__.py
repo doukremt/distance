@@ -1,10 +1,7 @@
 "Utilities for comparing sequences"
 
-__all__ = ["levenshtein", "hamming", "sorensen", "jaccard"]
-
 try:
-	from .cdistance import levenshtein, hamming
+	from .cdistance import *
+	from .distance import jaccard, sorensen
 except ImportError:
-	from .distance import levenshtein, hamming
-
-from .distance import jaccard, sorensen
+	from .distance import *

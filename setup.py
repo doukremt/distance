@@ -21,11 +21,31 @@ import os, sys
 from distutils.core import setup, Extension
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
+pkg_dir = os.path.join(this_dir, "distance")
+
+
+def show_c_doc():
+	docs = {}
+	import ast, _ast
+	with open(os.path.join(pkg_dir, "distance.py")) as f:
+		content = ast.parse(f.read())
+	for node in ast.iter_child_nodes(content):
+		if isinstance(node, _ast.FunctionDef):
+			doc = ast.get_docstring(node)
+			doc = doc.replace('\n', '\\n\\\n').replace('"', '\\"')
+			docs[node.name] = doc
+	out = ('%s\n%s\\\n' % (name, doc) for name, doc, in docs.items())
+	sys.stderr.write('\n'.join(out) + '\n')
+
 
 with open(os.path.join(this_dir, "README.md")) as f:
     long_description = f.read()
 
 args = sys.argv[1:]
+
+if "print-doc" in args:
+	show_c_doc()
+	sys.exit()
 
 if "--with-c" in args:
 	args.remove("--with-c")
