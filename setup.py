@@ -60,7 +60,7 @@ else:
 
 setup (
     name = 'Distance',
-    version = '0.1.1',
+    version = '0.1.2',
     description = 'Utilities for computing similarities between sequences',
     long_description = long_description,
     author='Michaël Meyer',
@@ -77,5 +77,6 @@ setup (
         'Topic :: Software Development :: Libraries :: Python Modules',
         'Programming Language :: C',
         'Programming Language :: Python',
+        'Programming Language :: Python :: 3.3',
     )
 )
