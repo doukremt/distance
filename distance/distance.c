@@ -244,8 +244,9 @@ uni_levenshtein(PyObject *str1, PyObject *str2, Py_ssize_t len1, Py_ssize_t len2
 	ptr2 = PyUnicode_DATA(str2);
 	kind1 = PyUnicode_KIND(str1);
 	kind2 = PyUnicode_KIND(str2);
-	
-	column = (Py_ssize_t*) malloc((len1 + 1) * sizeof(Py_ssize_t));
+
+	/* never change this */
+	column = (Py_ssize_t*) malloc((len1 + 2) * sizeof(Py_ssize_t));
 	if (column == NULL) {
 		PyErr_SetString(PyExc_RuntimeError, "no memory");
 		return -1;
@@ -279,8 +280,9 @@ rich_levenshtein(PyObject *seq1, PyObject *seq2, Py_ssize_t len1, Py_ssize_t len
 		return len2;
 	if (len2 == 0)
 		return len1;
-		
-	column = (Py_ssize_t*) malloc((len1 + 1) * sizeof(Py_ssize_t));
+	
+	/* never change this */
+	column = (Py_ssize_t*) malloc((len1 + 2) * sizeof(Py_ssize_t));
 	if (column == NULL) {
 		PyErr_SetString(PyExc_RuntimeError, "no memory");
 		return -1;
@@ -338,6 +340,7 @@ levenshtein(PyObject *self, PyObject *args, PyObject *kwargs)
 			dist = uni_levenshtein(arg1, arg2, len1, len2);
 		else
 			dist = uni_levenshtein(arg2, arg1, len2, len1);
+	
 	}
 
 	else if (PySequence_Check(arg1) && PySequence_Check(arg2)) {
@@ -375,7 +378,7 @@ levenshtein(PyObject *self, PyObject *args, PyObject *kwargs)
 		return NULL;
 	}
 
-	if (dist == -1)	/* error somewhere */
+	if (dist == -1) /* error somewhere */
 		return NULL;
 	
 	if (do_normalize) {
@@ -538,7 +541,6 @@ typedef struct {
 
 static void itor_dealloc(ItorState *state)
 {
-	PyObject_GC_UnTrack(state);
 	Py_XDECREF(state->str1);
 	Py_XDECREF(state->itor);
 	Py_TYPE(state)->tp_free(state);

@@ -45,6 +45,13 @@ Typical use case is to compare single words for similarity:
 	>>> distance.hamming("hamming", "hamning")
 	1
 
+If there is not a one-to-one mapping between sounds and glyphs in your language, or if you want to compare not glyphs, but syllables, you can pass in tuples of chars:
+
+	>>> t1 = ("de", "ci", "si", "ve")
+	>>> t2 = ("de", "ri", "si", "ve")
+	>>> distance.levenshtein(t1, t2)
+	1
+
 Comparing lists of strings can also be useful for computing similarities between sentences, paragraphs, etc.:
 
 	>>> sent1 = ['the', 'quick', 'brown', 'fox', 'jumps', 'over', 'the', 'lazy', 'dog']
@@ -73,6 +80,8 @@ A corresponding iterator `ifast_comp` is provided, which comes handy for filteri
 	>>> g = ifast_comp("foo", ["fo", "bar", "foob", "foo", "foobaz"])
 	>>> sorted(g)
 	[(0, 'foo'), (1, 'fo'), (1, 'foob')]
+
+`ifast_comp` can handle 1 million tokens without a problem.
 
 `fast_comp` and `ifast_comp` take an optional keyword argument `transpositions`; if its value evaluates to `True` (this is not the default), transpositions will be taken into account for the computation of the edit distance.
 

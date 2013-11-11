@@ -14,4 +14,4 @@ def quick_levenshtein(str1, str2):
 	return fast_comp(str1, str2, transpositions=False)
 
 def iquick_levenshtein(str1, strs):
-	return ifast_comp(str1, str2, transpositions=True)
+	return ifast_comp(str1, str2, transpositions=False)
