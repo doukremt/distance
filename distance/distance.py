@@ -36,7 +36,7 @@ def hamming(seq1, seq2, normalized=False):
 	if L != len(seq2):
 		raise ValueError("expected two strings of the same length")
 	if L == 0:
-		return 0.0 if normalized else 0
+		return 0.0 if normalized else 0  # equal
 	dist = sum(c1 != c2 for c1, c2 in zip(seq1, seq2))
 	if normalized:
 		return dist / float(L)
@@ -104,15 +104,22 @@ def sorensen(seq1, seq2):
 	return 1 - (2 * len(set1 & set2) / float(len(set1) + len(set2)))
 
 
-def quick_levenshtein(str1, str2):
-	"""Compute the levenshtein distance between the two strings `str1` and `str2` up
-	to a maximum of 2 included, and return it. If the edit distance between the two
-	strings is higher than that, -1 is returned.
+def fast_comp(str1, str2, transpositions=False):
+	"""Compute the distance between the two strings `str1` and `str2` up to a maximum
+	of 2 included, and return it. If the edit distance between the two strings is higher
+	than that, -1 is returned.
 	
-	This can be a lot faster than `levenshtein`.
+	`str1` and `str2` are expected to be unicode strings. If `transpositions` is `True`,
+	transpositions will be taken into account when computing the distance between the
+	submitted strings, e.g.:
 
-	The algorithm comes from `http://writingarchives.sakura.ne.jp/fastcomp`. The python
-	code is the original one, and it has been rewritten in C for a large performance gain.
+		>>> fast_comp("abc", "bac", transpositions=False)
+		2
+		>>> fast_comp("abc", "bac", transpositions=True)
+		1
+
+	The algorithm comes from `http://writingarchives.sakura.ne.jp/fastcomp`. I've added
+	transpositions support to the original code, and rewritten it in C.
 	"""
 	replace, insert, delete = "r", "i", "d"
 
@@ -121,32 +128,38 @@ def quick_levenshtein(str1, str2):
 		L1, L2 = L2, L1
 		str1, str2 = str2, str1
 
-	if L1 - L2 == 0:
+	ldiff = L1 - L2
+	if ldiff == 0:
 		models = (insert+delete, delete+insert, replace+replace)
-	elif L1 - L2 == 1:
+	elif ldiff == 1:
 		models = (delete+replace, replace+delete)
-	elif L1 - L2 == 2:
+	elif ldiff == 2:
 		models = (delete+delete,)
 	else:
 		return -1
 
 	res = 3
 	for model in models:
-		i, j, c = 0, 0, 0
+		i = j = c = 0
 		while (i < L1) and (j < L2):
 			if str1[i] != str2[j]:
 				c = c+1
 				if 2 < c:
 					break
-                
-				cmd = model[c-1]
-				if cmd == delete:
-					i = i+1
-				elif cmd == insert:
-					j = j+1
+            
+				if transpositions and ldiff != 2 \
+            	and i < L1 - 1 and j < L2 - 1 \
+            	and str1[i+1] == str2[j] and str1[i] == str2[j+1]:
+					i, j = i+2, j+2
 				else:
-					assert cmd == replace
-					i,j = i+1, j+1
+					cmd = model[c-1]
+					if cmd == delete:
+						i = i+1
+					elif cmd == insert:
+						j = j+1
+					else:
+						assert cmd == replace
+						i,j = i+1, j+1
 			else:
 				i,j = i+1, j+1
 
@@ -171,13 +184,14 @@ def quick_levenshtein(str1, str2):
 	return res
 
 
-def iquick_levenshtein(str1, strs):
+def ifast_comp(str1, strs, transpositions=False):
 	"""Return an iterator over all the strings in `strs` which distance from `str1`
 	is lower or equal to 2. The strings which distance from the reference string
 	is higher than that are dropped.
 	
 		`str1`: the reference unicode string.
 		`strs`: an iterable of unicode strings (can be a generator).
+		`transpositions` has the same sense than in `fast_comp`.
 	
 	The return value is a series of pairs (distance, string).
 	
@@ -191,11 +205,11 @@ def iquick_levenshtein(str1, strs):
 	You might want to call `sorted()` on the iterator to get the results in a
 	significant order:
 	
-		>>> g = iquick_levenshtein("foo", ["fo", "bar", "foob", "foo", "foobaz"])
+		>>> g = ifast_comp("foo", ["fo", "bar", "foob", "foo", "foobaz"])
 		>>> sorted(g)
 		[(0, 'foo'), (1, 'fo'), (1, 'foob')]
 	"""
 	for str2 in strs:
-		dist = quick_levenshtein(str1, str2)
+		dist = fast_comp(str1, str2, transpositions)
 		if dist != -1:
 			yield dist, str2

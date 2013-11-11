@@ -3,12 +3,12 @@ distance - Utilities for comparing sequences
 
 This package provides helpers for computing similarities between arbitrary sequences. Included metrics are:
 
-	* Levenshtein distance (classic and faster version)
+	* Levenshtein distance
 	* Hamming distance
 	* Jaccard distance
 	* Sorensen distance
 
-All distance computations are implemented in pure Python. Levenshtein (classic and faster version) and Hamming distances are also implemented in C.
+All distance computations are implemented in pure Python. Levenshtein and Hamming distances are also implemented in C.
 
 
 Installation
@@ -66,13 +66,15 @@ If a `normalized` keyword parameter is supplied to `hamming` or `levenshtein` an
 	>>> distance.jaccard("decide", "resize")
 	0.7142857142857143
 
-Finally, there is a `quick_levenshtein` function, which computes the Levenshtein distance between two strings up to a value of 2 included, and is quite faster than the classic Levenshtein implementation. The python version comes from [here](http://writingarchives.sakura.ne.jp/fastcomp), and has been rewritten in C.
+Finally, there is a `fast_comp` function, which computes the distance between two strings up to a value of 2 included. If the distance between the strings is higher than that, -1 is returned. This function is of limited use, but on the other hand it is quite faster than `levenshtein`.
 
-Also, an iterator type `iquick_levenshtein` is provided, which comes handy to filter from a long list of strings the ones that resemble a given one:
+A corresponding iterator `ifast_comp` is provided, which comes handy for filtering from a long list of strings the one that resemble a given one, e.g.:
 
-	>>> g = iquick_levenshtein("foo", ["fo", "bar", "foob", "foo", "foobaz"])
+	>>> g = ifast_comp("foo", ["fo", "bar", "foob", "foo", "foobaz"])
 	>>> sorted(g)
 	[(0, 'foo'), (1, 'fo'), (1, 'foob')]
+
+`fast_comp` and `ifast_comp` take an optional keyword argument `transpositions`; if its value evaluates to `True` (this is not the default), transpositions will be taken into account for the computation of the edit distance.
 
 See the functions documentation (`help(funcname)`) for more details.
 

@@ -25,17 +25,22 @@ pkg_dir = os.path.join(this_dir, "distance")
 
 
 def show_c_doc():
-	docs = {}
-	import ast, _ast
+	exclude = {"jaccard", "sorensen"}
+	import ast, _ast, re
 	with open(os.path.join(pkg_dir, "distance.py")) as f:
-		content = ast.parse(f.read())
-	for node in ast.iter_child_nodes(content):
-		if isinstance(node, _ast.FunctionDef):
+		content = f.read()
+	tree = ast.parse(content)
+	for node in ast.iter_child_nodes(tree):
+		if isinstance(node, _ast.FunctionDef) and not node.name in exclude:
 			doc = ast.get_docstring(node)
-			doc = doc.replace('\n', '\\n\\\n').replace('"', '\\"')
-			docs[node.name] = doc
-	out = ('%s\n%s\\\n' % (name, doc) for name, doc, in docs.items())
-	sys.stderr.write('\n'.join(out) + '\n')
+			if not doc:
+				continue
+			defin = re.findall("def\s%s\s*(.+?)\s*:" % node.name, content)
+			assert defin
+			defin = node.name + defin[0] + 2 * '\\n\\\n'
+			doc = doc.replace('\n', '\\n\\\n').replace('"', '\\"').replace(8 * ' ', 4 * ' ')
+			doc = 'PyDoc_STRVAR(%s_doc,\n"%s%s\\\n");' % (node.name, defin, doc)
+			sys.stderr.write(doc + 2 * '\n')
 
 
 with open(os.path.join(this_dir, "README.md")) as f:

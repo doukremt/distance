@@ -23,7 +23,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 #define MIN3(a, b, c) ((a) < (b) ? ((a) < (c) ? (a) : (c)) : ((b) < (c) ? (b) : (c)))
 
 PyDoc_STRVAR(hamming_doc,
-"hamming(seq1, seq2, normalized=False) -> hamming distance\n\
+"hamming(seq1, seq2, normalized=False)\n\
 \n\
 Compute the Hamming distance between the two sequences `seq1` and `seq2`.\n\
 The Hamming distance is the number of differing items in two ordered sequences\n\
@@ -39,7 +39,7 @@ Normalized hamming distance is computed as:\n\
 ");
 
 PyDoc_STRVAR(levenshtein_doc,
-"levenshtein(seq1, seq2, normalized=False) -> levenshtein distance\n\
+"levenshtein(seq1, seq2, normalized=False)\n\
 \n\
 Compute the Levenshtein distance between the two sequences `seq1` and `seq2`.\n\
 The Levenshtein distance is the minimum number of edit operations necessary for\n\
@@ -57,21 +57,28 @@ Normalized levenshtein distance is computed as:\n\
     lev_dist / max(len(seq1), len(seq2))\
 ");
 
-PyDoc_STRVAR(quick_levenshtein_doc,
-"quick_levenshtein(str1, str2) -> levenshtein distance\n\
+PyDoc_STRVAR(fast_comp_doc,
+"fast_comp(str1, str2, transpositions=False)\n\
 \n\
-Compute the levenshtein distance between the two strings `str1` and `str2` up\n\
-to a maximum of 2 included, and return it. If the edit distance between the two\n\
-strings is higher than that, -1 is returned.\n\
+Compute the distance between the two strings `str1` and `str2` up to a maximum\n\
+of 2 included, and return it. If the edit distance between the two strings is higher\n\
+than that, -1 is returned.\n\
 \n\
-This can be a lot faster than `levenshtein`.\n\
+`str1` and `str2` are expected to be unicode strings. If `transpositions` is `True`,\n\
+transpositions will be taken into account when computing the distance between the\n\
+submitted strings, e.g.:\n\
 \n\
-The algorithm comes from `http://writingarchives.sakura.ne.jp/fastcomp`. The python\n\
-code is the original one, and it has been rewritten in C for a large performance gain.\
+    >>> fast_comp(\"abc\", \"bac\", transpositions=False)\n\
+    2\n\
+    >>> fast_comp(\"abc\", \"bac\", transpositions=True)\n\
+    1\n\
+\n\
+The algorithm comes from `http://writingarchives.sakura.ne.jp/fastcomp`. I've added\n\
+transpositions support to the original code, and rewritten it in C.\
 ");
 
-PyDoc_STRVAR(iquick_levenshtein_doc,
-"iquick_levenshtein(str1, strs) -> (distance, str2)..\n\
+PyDoc_STRVAR(ifast_comp_doc,
+"ifast_comp(str1, strs, transpositions=False)\n\
 \n\
 Return an iterator over all the strings in `strs` which distance from `str1`\n\
 is lower or equal to 2. The strings which distance from the reference string\n\
@@ -79,6 +86,7 @@ is higher than that are dropped.\n\
 \n\
     `str1`: the reference unicode string.\n\
     `strs`: an iterable of unicode strings (can be a generator).\n\
+    `transpositions` has the same sense than in `fast_comp`\n\
 \n\
 The return value is a series of pairs (distance, string).\n\
 \n\
@@ -92,14 +100,14 @@ only interested in strings which are below distance 2 from the reference string.
 You might want to call `sorted()` on the iterator to get the results in a\n\
 significant order:\n\
 \n\
-    >>> g = iquick_levenshtein(\"foo\", [\"fo\", \"bar\", \"foob\", \"foo\", \"foobaz\"])\n\
+    >>> g = ifast_comp(\"foo\", [\"fo\", \"bar\", \"foob\", \"foo\", \"foobaz\"])\n\
     >>> sorted(g)\n\
     [(0, 'foo'), (1, 'fo'), (1, 'foob')]\
 ");
 
 
 static Py_ssize_t
-uni_hamming(PyObject *str1, PyObject *str2, Py_ssize_t len1, Py_ssize_t len2)
+uni_hamming(PyObject *str1, PyObject *str2, Py_ssize_t len)
 {
 	Py_ssize_t i, dist = 0;
 	
@@ -108,7 +116,7 @@ uni_hamming(PyObject *str1, PyObject *str2, Py_ssize_t len1, Py_ssize_t len2)
 	int kind1 = PyUnicode_KIND(str1);
 	int kind2 = PyUnicode_KIND(str2);
     
-	for (i = 0; i < len1; i++) {
+	for (i = 0; i < len; i++) {
 		if (PyUnicode_READ(kind1, ptr1, i) != PyUnicode_READ(kind2, ptr2, i))
 			dist++;
 	}
@@ -118,11 +126,11 @@ uni_hamming(PyObject *str1, PyObject *str2, Py_ssize_t len1, Py_ssize_t len2)
 
 
 static Py_ssize_t
-rich_hamming(PyObject *seq1, PyObject *seq2, Py_ssize_t len1, Py_ssize_t len2)
+rich_hamming(PyObject *seq1, PyObject *seq2, Py_ssize_t len)
 {
 	Py_ssize_t i, comp, dist = 0;
 	
-	for (i = 0; i < len1; i++) {
+	for (i = 0; i < len; i++) {
 		comp = PyObject_RichCompareBool(
 			PySequence_Fast_GET_ITEM(seq1, i),
 			PySequence_Fast_GET_ITEM(seq2, i),
@@ -168,7 +176,7 @@ hamming(PyObject *self, PyObject *args, PyObject *kwargs)
 			PyErr_SetString(PyExc_ValueError, "expected two objects of the same length");
 			return NULL;
 		}
-		dist = uni_hamming(arg1, arg2, len1, len2);
+		dist = uni_hamming(arg1, arg2, len1);
 	}
 	
 	else if (PySequence_Check(arg1) && PySequence_Check(arg2)) {
@@ -197,7 +205,7 @@ hamming(PyObject *self, PyObject *args, PyObject *kwargs)
 			PyErr_SetString(PyExc_ValueError, "expected two objects of the same len");
 			return NULL;
 		}
-		dist = rich_hamming(seq1, seq2, len1, len2);
+		dist = rich_hamming(seq1, seq2, len1);
 	}
 	
 	else {
@@ -232,15 +240,6 @@ uni_levenshtein(PyObject *str1, PyObject *str2, Py_ssize_t len1, Py_ssize_t len2
 	if (len2 == 0)
 		return len1;
 
-	if (len1 < len2) {
-		PyObject *temp_str = str1;
-		Py_ssize_t temp_len = len1;
-		str1 = str2;
-		len1 = len2;
-		str2 = temp_str;
-		len2 = temp_len;
-	}
-
 	ptr1 = PyUnicode_DATA(str1);
 	ptr2 = PyUnicode_DATA(str2);
 	kind1 = PyUnicode_KIND(str1);
@@ -248,8 +247,6 @@ uni_levenshtein(PyObject *str1, PyObject *str2, Py_ssize_t len1, Py_ssize_t len2
 	
 	column = (Py_ssize_t*) malloc((len1 + 1) * sizeof(Py_ssize_t));
 	if (column == NULL) {
-		Py_DECREF(str1);
-		Py_DECREF(str2);
 		PyErr_SetString(PyExc_RuntimeError, "no memory");
 		return -1;
 	}
@@ -278,27 +275,13 @@ rich_levenshtein(PyObject *seq1, PyObject *seq2, Py_ssize_t len1, Py_ssize_t len
 	Py_ssize_t x, y, last, old;
 	int comp;
 	
-	if (len1 == 0 || len2 == 0) {
-		Py_DECREF(seq1);
-		Py_DECREF(seq2);
-		if (len1 == 0)
-			return len2;
+	if (len1 == 0)
+		return len2;
+	if (len2 == 0)
 		return len1;
-	}
-	
-	if (len1 < len2) {
-		Py_ssize_t len1b = len1;
-		PyObject *seq1b = seq1;
-		len1 = len2;
-		seq1 = seq2;
-		len2 = len1b;
-		seq2 = seq1b;
-	}
 		
 	column = (Py_ssize_t*) malloc((len1 + 1) * sizeof(Py_ssize_t));
 	if (column == NULL) {
-		Py_DECREF(seq1);
-		Py_DECREF(seq2);
 		PyErr_SetString(PyExc_RuntimeError, "no memory");
 		return -1;
 	}
@@ -314,8 +297,6 @@ rich_levenshtein(PyObject *seq1, PyObject *seq2, Py_ssize_t len1, Py_ssize_t len
 				PySequence_Fast_GET_ITEM(seq2, x - 1),
 				Py_EQ);
 			if (comp == -1) {
-				Py_DECREF(seq1);
-				Py_DECREF(seq2);
 				free(column);
 				PyErr_SetString(PyExc_RuntimeError, "failed to compare objects");
 				return -1;
@@ -324,9 +305,7 @@ rich_levenshtein(PyObject *seq1, PyObject *seq2, Py_ssize_t len1, Py_ssize_t len
 			last = old;
 		}
 	}
-
-	Py_DECREF(seq1);
-	Py_DECREF(seq2);
+	
 	free(column);
 	
 	return column[len1];
@@ -337,7 +316,7 @@ static PyObject *
 levenshtein(PyObject *self, PyObject *args, PyObject *kwargs)
 {
 	PyObject *arg1, *arg2;
-	Py_ssize_t len1, len2, dist;
+	Py_ssize_t len1, len2, dist=-1;
 	int do_normalize = 0;
 	static char *keywords[] = {"arg1", "arg2", "normalized", NULL};
 	
@@ -351,10 +330,14 @@ levenshtein(PyObject *self, PyObject *args, PyObject *kwargs)
 			return NULL;
 		if (PyUnicode_READY(arg2) != 0)
 			return NULL;
+		
 		len1 = PyUnicode_GET_LENGTH(arg1);
 		len2 = PyUnicode_GET_LENGTH(arg2);
-
-		dist = uni_levenshtein(arg1, arg2, len1, len2);
+		
+		if (len1 > len2)
+			dist = uni_levenshtein(arg1, arg2, len1, len2);
+		else
+			dist = uni_levenshtein(arg2, arg1, len2, len1);
 	}
 
 	else if (PySequence_Check(arg1) && PySequence_Check(arg2)) {
@@ -378,7 +361,13 @@ levenshtein(PyObject *self, PyObject *args, PyObject *kwargs)
 			return NULL;
 		}
 	
-		dist = rich_levenshtein(arg1, arg2, len1, len2);
+		if (len1 > len2)
+			dist = rich_levenshtein(arg1, arg2, len1, len2);
+		else
+			dist = rich_levenshtein(arg2, arg1, len2, len1);
+		
+		Py_DECREF(seq1);
+		Py_DECREF(seq2);
 	}
 	
 	else {
@@ -386,7 +375,7 @@ levenshtein(PyObject *self, PyObject *args, PyObject *kwargs)
 		return NULL;
 	}
 
-	if (dist == -1)
+	if (dist == -1)	/* error somewhere */
 		return NULL;
 	
 	if (do_normalize) {
@@ -400,11 +389,12 @@ levenshtein(PyObject *self, PyObject *args, PyObject *kwargs)
 }
 
 
-/* Quick levenshtein */
 
+/* Fast comp and co. */
 
 static short
-uni_quick_levenshtein(void *ptr1, void *ptr2, int kind1, int kind2, Py_ssize_t len1, Py_ssize_t len2)
+uni_fast_comp(void *ptr1, void *ptr2, int kind1, int kind2,
+	Py_ssize_t len1, Py_ssize_t len2, int transpositions)
 {
 	char *models[3];
 	short m, cnt, res = 3;
@@ -444,13 +434,21 @@ uni_quick_levenshtein(void *ptr1, void *ptr2, int kind1, int kind2, Py_ssize_t l
 				if (c > 2)
 					break;
 				
-				if (models[m][c - 1] == 'd')
-					i++;
-				else if (models[m][c - 1] == 'i')
-					j++;
+				if (transpositions && ldiff != 2 && i < len1 - 1 && j < len2 - 1 && \
+					PyUnicode_READ(kind1, ptr1, i + 1) == PyUnicode_READ(kind2, ptr2, j) && \
+					PyUnicode_READ(kind1, ptr1, i) == PyUnicode_READ(kind2, ptr2, j + 1)) {
+					i = i + 2;
+					j = j + 2;
+				}
 				else {
-					i++;
-					j++;
+					if (models[m][c - 1] == 'd')
+						i++;
+					else if (models[m][c - 1] == 'i')
+						j++;
+					else {
+						i++;
+						j++;
+					}
 				}
 			}
 			else {
@@ -490,14 +488,20 @@ uni_quick_levenshtein(void *ptr1, void *ptr2, int kind1, int kind2, Py_ssize_t l
 	return res;
 }
 
+
 static PyObject *
-quick_levenshtein(PyObject *self, PyObject *args)
+fast_comp(PyObject *self, PyObject *args, PyObject *kwargs)
 {
 	PyObject *arg1, *arg2;
 	Py_ssize_t len1, len2;
+	void *ptr1, *ptr2;
+	int kind1, kind2;
 	short dist;
+	int transpositions = 0;
+	static char *keywords[] = {"arg1", "arg2", "transpositions", NULL};
 
-	if (!PyArg_ParseTuple(args, "UU:quick_levenshtein", &arg1, &arg2))
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "UU|p:fast_comp",
+		keywords, &arg1, &arg2, &transpositions))
 		return NULL;
 
 	if (PyUnicode_READY(arg1) != 0)
@@ -507,43 +511,48 @@ quick_levenshtein(PyObject *self, PyObject *args)
 
 	len1 = PyUnicode_GET_LENGTH(arg1);
 	len2 = PyUnicode_GET_LENGTH(arg2);
-	void *ptr1 = PyUnicode_DATA(arg1);
-	void *ptr2 = PyUnicode_DATA(arg2);
-	int kind1 = PyUnicode_KIND(arg1);
-	int kind2 = PyUnicode_KIND(arg2);
+	ptr1 = PyUnicode_DATA(arg1);
+	ptr2 = PyUnicode_DATA(arg2);
+	kind1 = PyUnicode_KIND(arg1);
+	kind2 = PyUnicode_KIND(arg2);
 	
 	if (len1 > len2)
-		dist = uni_quick_levenshtein(ptr1, ptr2, kind1, kind2, len1, len2);
+		dist = uni_fast_comp(ptr1, ptr2, kind1, kind2, len1, len2, transpositions);
 	else
-		dist = uni_quick_levenshtein(ptr2, ptr1, kind2, kind1, len2, len1);
+		dist = uni_fast_comp(ptr2, ptr1, kind2, kind1, len2, len1, transpositions);
 	
 	return Py_BuildValue("h", dist);	
 }
 
 
 typedef struct {
-    PyObject_HEAD
-    PyObject *itor;
-    PyObject *str1;
-    void *ptr1;
-    int kind1;
-    Py_ssize_t len1;
+	PyObject_HEAD
+	PyObject *itor;
+	PyObject *str1;
+	void *ptr1;
+	int kind1;
+	Py_ssize_t len1;
+	int transpos;
 } ItorState;
 
 
 static void itor_dealloc(ItorState *state)
 {
-	Py_DECREF(state->str1);
+	PyObject_GC_UnTrack(state);
+	Py_XDECREF(state->str1);
 	Py_XDECREF(state->itor);
 	Py_TYPE(state)->tp_free(state);
 }
 
 
-static PyObject * iquick_levenshtein(PyTypeObject *type, PyObject *args, PyObject *kwargs)
+static PyObject * ifast_comp(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 {
 	PyObject *arg1, *arg2, *itor;
+	int transpositions = 0;
+	static char *keywords[] = {"str1", "strs", "transpositions", NULL};
 
-	if (!PyArg_ParseTuple(args, "UO:iquick_levenshtein", &arg1, &arg2))
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "UO|p:ifast_comp",
+		keywords, &arg1, &arg2, &transpositions))
 		return NULL;
 
 	if (PyUnicode_READY(arg1) != 0)
@@ -565,12 +574,13 @@ static PyObject * iquick_levenshtein(PyTypeObject *type, PyObject *args, PyObjec
 	state->len1 = PyUnicode_GET_LENGTH(arg1);
 	state->ptr1 = PyUnicode_DATA(arg1);
 	state->kind1 = PyUnicode_KIND(arg1);
+	state->transpos = transpositions;
 	  
 	return (PyObject *)state;
 }
 
 
-static PyObject * iquick_levenshtein_next(ItorState *state)
+static PyObject * ifast_comp_next(ItorState *state)
 {
 	PyObject *str2, *rv;
 	Py_ssize_t len2;
@@ -578,9 +588,7 @@ static PyObject * iquick_levenshtein_next(ItorState *state)
 	int kind2;
 	short dist = -1;
 	
-	str2 = PyIter_Next(state->itor);
-	
-	while (str2 != NULL) {
+	while ((str2 = PyIter_Next(state->itor)) != NULL) {
 	
 		if (!PyUnicode_Check(str2)) {
 			Py_DECREF(str2);
@@ -597,9 +605,11 @@ static PyObject * iquick_levenshtein_next(ItorState *state)
 		kind2 = PyUnicode_KIND(str2);
 		
 		if (state->len1 > len2)
-			dist = uni_quick_levenshtein(state->ptr1, ptr2, state->kind1, kind2, state->len1, len2);
+			dist = uni_fast_comp(state->ptr1, ptr2, state->kind1, kind2,
+				state->len1, len2, state->transpos);
 		else
-			dist = uni_quick_levenshtein(ptr2, state->ptr1, kind2, state->kind1, len2, state->len1);
+			dist = uni_fast_comp(ptr2, state->ptr1, kind2, state->kind1,
+				len2, state->len1, state->transpos);
 		
 		if (dist != -1) {
 			rv = Py_BuildValue("(hO)", dist, str2);
@@ -608,60 +618,58 @@ static PyObject * iquick_levenshtein_next(ItorState *state)
 		}
 		
 		Py_DECREF(str2);
-		str2 = PyIter_Next(state->itor);
-	
 	}
 
 	return NULL;
 }
 
 
-PyTypeObject IQuickLevenshtein_Type = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0)
-    "distance.iquick_levenshtein", /* tp_name */
-    sizeof(ItorState), /* tp_basicsize */
-    0, /* tp_itemsize */
-    (destructor)itor_dealloc, /* tp_dealloc */
-    0, /* tp_print */
-    0, /* tp_getattr */
-    0, /* tp_setattr */
-    0, /* tp_reserved */
-    0, /* tp_repr */
-    0, /* tp_as_number */
-    0, /* tp_as_sequence */
-    0, /* tp_as_mapping */
-    0, /* tp_hash */
-    0, /* tp_call */
-    0, /* tp_str */
-    0, /* tp_getattro */
-    0, /* tp_setattro */
-    0, /* tp_as_buffer */
-    Py_TPFLAGS_DEFAULT, /* tp_flags */
-    iquick_levenshtein_doc, /* tp_doc */
-    0, /* tp_traverse */
-    0, /* tp_clear */
-    0, /* tp_richcompare */
-    0, /* tp_weaklistoffset */
-    PyObject_SelfIter, /* tp_iter */
-    (iternextfunc)iquick_levenshtein_next, /* tp_iternext */
-    0, /* tp_methods */
-    0, /* tp_members */
-    0, /* tp_getset */
-    0, /* tp_base */
-    0, /* tp_dict */
-    0, /* tp_descr_get */
-    0, /* tp_descr_set */
-    0, /* tp_dictoffset */
-    0, /* tp_init */
-    PyType_GenericAlloc, /* tp_alloc */
-    iquick_levenshtein, /* tp_new */
+PyTypeObject IFastComp_Type = {
+	PyVarObject_HEAD_INIT(&PyType_Type, 0)
+	"distance.ifast_comp", /* tp_name */
+	sizeof(ItorState), /* tp_basicsize */
+	0, /* tp_itemsize */
+	(destructor)itor_dealloc, /* tp_dealloc */
+	0, /* tp_print */
+	0, /* tp_getattr */
+	0, /* tp_setattr */
+	0, /* tp_reserved */
+	0, /* tp_repr */
+	0, /* tp_as_number */
+	0, /* tp_as_sequence */
+	0, /* tp_as_mapping */
+	0, /* tp_hash */
+	0, /* tp_call */
+	0, /* tp_str */
+	0, /* tp_getattro */
+	0, /* tp_setattro */
+	0, /* tp_as_buffer */
+	Py_TPFLAGS_DEFAULT, /* tp_flags */
+	ifast_comp_doc, /* tp_doc */
+	0, /* tp_traverse */
+	0, /* tp_clear */
+	0, /* tp_richcompare */
+	0, /* tp_weaklistoffset */
+	PyObject_SelfIter, /* tp_iter */
+	(iternextfunc)ifast_comp_next, /* tp_iternext */
+	0, /* tp_methods */
+	0, /* tp_members */
+	0, /* tp_getset */
+	0, /* tp_base */
+	0, /* tp_dict */
+	0, /* tp_descr_get */
+	0, /* tp_descr_set */
+	0, /* tp_dictoffset */
+	0, /* tp_init */
+	PyType_GenericAlloc, /* tp_alloc */
+	ifast_comp, /* tp_new */
 };
 
 
 static PyMethodDef CDistanceMethods[] = {
 	{"levenshtein", (PyCFunction)levenshtein, METH_VARARGS | METH_KEYWORDS, levenshtein_doc},
 	{"hamming", (PyCFunction)hamming, METH_VARARGS | METH_KEYWORDS, hamming_doc},
-	{"quick_levenshtein", quick_levenshtein, METH_VARARGS, quick_levenshtein_doc},
+	{"fast_comp", (PyCFunction)fast_comp, METH_VARARGS | METH_KEYWORDS, fast_comp_doc},
 	{NULL, NULL, 0, NULL}
 };
 
@@ -677,11 +685,11 @@ PyMODINIT_FUNC PyInit_cdistance(void)
 	if (!module)
 		return NULL;
 
-	if (PyType_Ready(&IQuickLevenshtein_Type) != 0)
+	if (PyType_Ready(&IFastComp_Type) != 0)
 		return NULL;
 	
-	Py_INCREF((PyObject *)&IQuickLevenshtein_Type);
-	PyModule_AddObject(module, "iquick_levenshtein", (PyObject *)&IQuickLevenshtein_Type);
+	Py_INCREF((PyObject *)&IFastComp_Type);
+	PyModule_AddObject(module, "ifast_comp", (PyObject *)&IFastComp_Type);
 	
 	return module;
 }
