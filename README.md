@@ -98,3 +98,6 @@ In the C implementation, unicode strings are handled separately from the other s
 05/11/13: Added Sorensen and Jaccard metrics, fixed memory issue in Levenshtein.
 
 10/11/13: Added `quick_levenshtein` and `iquick_levenshtein`.
+
+12/11/13: Expanded `fast_comp` (formerly `quick_levenshtein`) so that it can handle transpositions.
+          Fixed variable interversions in (C) `levenshtein` which produced sometimes strange results.
