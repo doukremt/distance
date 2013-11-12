@@ -33,7 +33,8 @@ def hamming(seq1, seq2, normalized=False):
 	will be a float between 0 and 1 included, where 0 means equal, and 1 totally different.
 	Normalized hamming distance is computed as:
 	
-		hamming_dist / len(seq1)
+		0.0                         if len(seq1) == 0
+		hamming_dist / len(seq1)    otherwise
 	"""
 	L = len(seq1)
 	if L != len(seq2):
@@ -46,7 +47,7 @@ def hamming(seq1, seq2, normalized=False):
 	return dist
 
 
-def levenshtein(seq1, seq2, normalized=False):
+def levenshtein(seq1, seq2, normalized=False, max_dist=2):
 	"""Compute the Levenshtein distance between the two sequences `seq1` and `seq2`.
 	The Levenshtein distance is the minimum number of edit operations necessary for
 	transforming one sequence into the other. The edit operations allowed are:
@@ -57,14 +58,30 @@ def levenshtein(seq1, seq2, normalized=False):
 	
 	If `normalized` evaluates to `False`, the return value will be an integer between
 	0 and the length of the sequences provided, edge values included; otherwise, it
-	will be a float between 0 and 1 included, where 0 means equal, and 1 totally different.
-	Normalized levenshtein distance is computed as:
+	will be a float between 0 and 1 included, where 0 means equal, and 1 totally
+	different. Normalized levenshtein distance is computed as:
 	
-		lev_dist / max(len(seq1), len(seq2))
+		0.0                                   if len(seq1) == len(seq2) == 0
+		lev_dist / max(len(seq1), len(seq2))  otherwise
+	
+	The `max_dist` parameter controls at which moment we should stop computing the
+	distance between the provided sequences. If it is a negative int, the distance
+	will be computed until the sequences are exhausted; otherwise, the computation
+	will stop at the moment the calculated distance is higher than `max_dist`, and
+	then return -1. For example:
+	
+		>>> levenshtein("abc", "abcd", max_dist=1)  # dist=1
+		1
+		>>> levenshtein("abc", "abcde", max_dist=1) # dist=2
+		-1
+	
+	This can be a time saver if you're not interested in absolute distance.
 	"""
 	if seq1 == seq2:
 		return 0.0 if normalized else 0
 	len1, len2 = len(seq1), len(seq2)
+	if max_dist >= 0 and abs(len1 - len2) > max_dist:
+		return -1
 	if len1 == 0:
 		return 1.0 if normalized else len2
 	if len2 == 0:
@@ -73,7 +90,7 @@ def levenshtein(seq1, seq2, normalized=False):
 		len1, len2 = len2, len1
 		seq1, seq2 = seq2, seq1
 	
-	column = array('I', range(len1 + 1))
+	column = array('I', range(len2 + 1))
 	for x in range(1, len1 + 1):
 		column[0] = x
 		last = x - 1
@@ -82,10 +99,33 @@ def levenshtein(seq1, seq2, normalized=False):
 			cost = int(seq1[x - 1] != seq2[y - 1])
 			column[y] = min(column[y] + 1, min(column[y - 1] + 1, last + cost))
 			last = old
+		if max_dist >= 0 and min(column) > max_dist:
+			return -1
+	
+	if max_dist >= 0 and column[len2] > max_dist:
+		# stay consistent, even if we have the exact distance
+		return -1
 	if normalized:
 		# already checked division by zero
 		return column[len2] / float(max(len1, len2))
 	return column[len2]
+
+
+def ilevenshtein(seq1, seqs, max_dist=-1):
+	"""Compute the Levenshtein distance between the sequence `seq1` and the series of
+	sequences `seqs`.
+	
+		`seq1`: the reference sequence
+		`seqs`: a series of sequences (can be a generator)
+		`max_dist`: if provided and > 0, only the sequences which distance from
+		the reference sequence is lower or equal to this value will be returned.
+	
+	The return value is an iterator of tuples (distance, sequence)..
+	"""
+	for seq2 in seqs:
+		dist = levenshtein(seq1, seq2, max_dist=max_dist)
+		if dist != -1:
+			yield dist, seq2
 
 
 def jaccard(seq1, seq2):
@@ -115,7 +155,7 @@ def fast_comp(str1, str2, transpositions=False):
 	
 	`str1` and `str2` are expected to be unicode strings. If `transpositions` is `True`,
 	transpositions will be taken into account when computing the distance between the
-	submitted strings, e.g.:
+	submitted strings. This can make a difference, e.g.:
 
 		>>> fast_comp("abc", "bac", transpositions=False)
 		2
@@ -199,12 +239,10 @@ def ifast_comp(str1, strs, transpositions=False):
 	
 	The return value is a series of pairs (distance, string).
 	
-	This is intended to be used to filter from a long list of strings the ones that
-	are unlikely to be good spelling suggestions for the reference string (distance 2
-	being considered a high enough value in most cases).
-	
 	This is faster than `levensthein` by an order of magnitude, so use this if you're
 	only interested in strings which are below distance 2 from the reference string.
+	If you need a different threshold than distance 2, see the `max_dist` parameter
+	in `levenshtein`.
 	
 	You might want to call `sorted()` on the iterator to get the results in a
 	significant order:
@@ -222,7 +260,7 @@ def ifast_comp(str1, strs, transpositions=False):
 def lcsubstrings(seq1, seq2, positions=False):
 	"""Find the longest common substring(s) in the sequences `seq1` and `seq2`.
 	
-	If positions evaluates to `True` only their position(s) will be returned,
+	If positions evaluates to `True` only their positions will be returned,
 	together with their length, in a tuple:
 	
 		(length, [(start pos in seq1, start pos in seq2)..])

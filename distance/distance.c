@@ -20,6 +20,8 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 #include "Python.h"
 
 
+#define WE_GOT_A_PROBLEM -2
+
 #define MIN3(a, b, c) ((a) < (b) ? ((a) < (c) ? (a) : (c)) : ((b) < (c) ? (b) : (c)))
 
 PyDoc_STRVAR(hamming_doc,
@@ -35,11 +37,12 @@ If `normalized` evaluates to `False`, the return value will be an integer betwee
 will be a float between 0 and 1 included, where 0 means equal, and 1 totally different.\n\
 Normalized hamming distance is computed as:\n\
 \n\
-    hamming_dist / len(seq1)\
+    0.0                         if len(seq1) == 0\n\
+    hamming_dist / len(seq1)    otherwise\
 ");
 
 PyDoc_STRVAR(levenshtein_doc,
-"levenshtein(seq1, seq2, normalized=False)\n\
+"levenshtein(seq1, seq2, normalized=False, max_dist=2)\n\
 \n\
 Compute the Levenshtein distance between the two sequences `seq1` and `seq2`.\n\
 The Levenshtein distance is the minimum number of edit operations necessary for\n\
@@ -51,10 +54,24 @@ transforming one sequence into the other. The edit operations allowed are:\n\
 \n\
 If `normalized` evaluates to `False`, the return value will be an integer between\n\
 0 and the length of the sequences provided, edge values included; otherwise, it\n\
-will be a float between 0 and 1 included, where 0 means equal, and 1 totally different.\n\
-Normalized levenshtein distance is computed as:\n\
+will be a float between 0 and 1 included, where 0 means equal, and 1 totally\n\
+different. Normalized levenshtein distance is computed as:\n\
 \n\
-    lev_dist / max(len(seq1), len(seq2))\
+    0.0                                   if len(seq1) == len(seq2) == 0\n\
+    lev_dist / max(len(seq1), len(seq2))  otherwise\n\
+\n\
+The `max_dist` parameter controls at which moment we should stop computing the\n\
+distance between the provided sequences. If it is a negative int, the distance\n\
+will be computed until the sequences are exhausted; otherwise, the computation\n\
+will stop at the moment the calculated distance is higher than `max_dist`, and\n\
+then return -1. For example:\n\
+\n\
+    >>> levenshtein(\"abc\", \"abcd\", max_dist=1)  # dist=1\n\
+    1\n\
+    >>> levenshtein(\"abc\", \"abcde\", max_dist=1) # dist=2\n\
+    -1\n\
+\n\
+This can be a time saver if you're not interested in absolute distance.\
 ");
 
 PyDoc_STRVAR(fast_comp_doc,
@@ -66,7 +83,7 @@ than that, -1 is returned.\n\
 \n\
 `str1` and `str2` are expected to be unicode strings. If `transpositions` is `True`,\n\
 transpositions will be taken into account when computing the distance between the\n\
-submitted strings, e.g.:\n\
+submitted strings. This can make a difference, e.g.:\n\
 \n\
     >>> fast_comp(\"abc\", \"bac\", transpositions=False)\n\
     2\n\
@@ -86,16 +103,14 @@ is higher than that are dropped.\n\
 \n\
     `str1`: the reference unicode string.\n\
     `strs`: an iterable of unicode strings (can be a generator).\n\
-    `transpositions` has the same sense than in `fast_comp`\n\
+    `transpositions` has the same sense than in `fast_comp`.\n\
 \n\
 The return value is a series of pairs (distance, string).\n\
 \n\
-This is intended to be used to filter from a long list of strings the ones that\n\
-are unlikely to be good spelling suggestions for the reference string (distance 2\n\
-being considered a high enough value in most cases).\n\
-\n\
 This is faster than `levensthein` by an order of magnitude, so use this if you're\n\
 only interested in strings which are below distance 2 from the reference string.\n\
+If you need a different threshold than distance 2, see the `max_dist` parameter\n\
+in `levenshtein`.\n\
 \n\
 You might want to call `sorted()` on the iterator to get the results in a\n\
 significant order:\n\
@@ -105,6 +120,9 @@ significant order:\n\
     [(0, 'foo'), (1, 'fo'), (1, 'foob')]\
 ");
 
+
+
+/* Hamming */
 
 static Py_ssize_t
 uni_hamming(PyObject *str1, PyObject *str2, Py_ssize_t len)
@@ -139,7 +157,7 @@ rich_hamming(PyObject *seq1, PyObject *seq2, Py_ssize_t len)
 			Py_DECREF(seq1);
 			Py_DECREF(seq2);
 			PyErr_SetString(PyExc_RuntimeError, "failed to compare objects");
-			return -1;
+			return WE_GOT_A_PROBLEM;
 		}
 		if (!comp)
 			dist++;
@@ -213,7 +231,7 @@ hamming(PyObject *self, PyObject *args, PyObject *kwargs)
 		return NULL;
 	}
 	
-	if (dist == -1)
+	if (dist == WE_GOT_A_PROBLEM)
 		return NULL;
 	
 	if (do_normalize) {
@@ -226,91 +244,133 @@ hamming(PyObject *self, PyObject *args, PyObject *kwargs)
 }
 
 
+
+/* Levenshtein */
+
+
+#define OUT_OF_BOUND -1
+
 static Py_ssize_t
-uni_levenshtein(PyObject *str1, PyObject *str2, Py_ssize_t len1, Py_ssize_t len2)
+minimum(Py_ssize_t *column, Py_ssize_t len)
+{
+	Py_ssize_t i;
+	/* column should not be empty, we already checked this */
+	Py_ssize_t min = column[0];
+	
+	for (i = 1; i < len; i++) {
+		if (column[i] < min)
+			min = column[i];
+	}
+	return min;
+}
+
+
+static Py_ssize_t
+uni_levenshtein(PyObject *str1, PyObject *str2,
+	Py_ssize_t len1, Py_ssize_t len2, Py_ssize_t max_dist)
 {
 	Py_ssize_t x, y, last, old;
 	Py_ssize_t *column;
 	int kind1, kind2;
 	void *ptr1, *ptr2;
 	unsigned short cost;
-	
-	if (len1 == 0)
-		return len2;
-	if (len2 == 0)
-		return len1;
+
+	if (max_dist >= 0 && (len1 - len2) > max_dist)
+		return OUT_OF_BOUND;
+	else {
+		if (len1 == 0)
+			return len2;
+		if (len2 == 0)
+			return len1;
+	}
 
 	ptr1 = PyUnicode_DATA(str1);
 	ptr2 = PyUnicode_DATA(str2);
 	kind1 = PyUnicode_KIND(str1);
 	kind2 = PyUnicode_KIND(str2);
 
-	/* never change this */
-	column = (Py_ssize_t*) malloc((len1 + 2) * sizeof(Py_ssize_t));
+	column = (Py_ssize_t*) malloc((len2 + 1) * sizeof(Py_ssize_t));
 	if (column == NULL) {
 		PyErr_SetString(PyExc_RuntimeError, "no memory");
-		return -1;
+		return WE_GOT_A_PROBLEM;
 	}
 
-	for (y = 1; y <= len1; y++)
+	for (y = 1 ; y <= len2; y++)
 		column[y] = y;
-	for (x = 1; x <= len2; x++) {
+	for (x = 1 ; x <= len1; x++) {
 		column[0] = x;
-		for (y = 1, last = x - 1; y <= len1; y++) {
+		for (y = 1, last = x - 1; y <= len2; y++) {
 			old = column[y];
-			cost = (PyUnicode_READ(kind1, ptr1, y - 1) != PyUnicode_READ(kind2, ptr2, x - 1));
+			cost = (PyUnicode_READ(kind1, ptr1, x - 1) != PyUnicode_READ(kind2, ptr2, y - 1));
 			column[y] = MIN3(column[y] + 1, column[y - 1] + 1, last + cost);
 			last = old;
+		}
+		if (max_dist >= 0 && minimum(column, len2 + 1) > max_dist) {
+			free(column);
+			return OUT_OF_BOUND;
 		}
 	}
 
 	free(column);
-	return column[len1];
+	
+	if (max_dist >= 0 && column[len2] > max_dist)
+		return OUT_OF_BOUND;
+	return column[len2];
 }
 
 
 static Py_ssize_t
-rich_levenshtein(PyObject *seq1, PyObject *seq2, Py_ssize_t len1, Py_ssize_t len2)
+rich_levenshtein(PyObject *seq1, PyObject *seq2,
+	Py_ssize_t len1, Py_ssize_t len2, Py_ssize_t max_dist)
 {
 	Py_ssize_t *column;
 	Py_ssize_t x, y, last, old;
 	int comp;
+
+	if (max_dist >= 0 && (len1 - len2) > max_dist)
+		return OUT_OF_BOUND;
+	else {
+		if (len1 == 0)
+			return len2;
+		if (len2 == 0)
+			return len1;
+	}
 	
-	if (len1 == 0)
-		return len2;
-	if (len2 == 0)
-		return len1;
-	
-	/* never change this */
-	column = (Py_ssize_t*) malloc((len1 + 2) * sizeof(Py_ssize_t));
+	column = (Py_ssize_t*) malloc((len2 + 1) * sizeof(Py_ssize_t));
 	if (column == NULL) {
 		PyErr_SetString(PyExc_RuntimeError, "no memory");
-		return -1;
+		return WE_GOT_A_PROBLEM;
 	}
 
-	for (y = 1; y <= len1; y++)
+	for (y = 1; y <= len2; y++)
 		column[y] = y;
-	for (x = 1; x <= len2; x++) {
+	for (x = 1; x <= len1; x++) {
 		column[0] = x;
-		for (y = 1, last = x - 1; y <= len1; y++) {
+		for (y = 1, last = x - 1; y <= len2; y++) {
 			old = column[y];
 			comp = PyObject_RichCompareBool(
-				PySequence_Fast_GET_ITEM(seq1, y - 1),
-				PySequence_Fast_GET_ITEM(seq2, x - 1),
+				PySequence_Fast_GET_ITEM(seq1, x - 1),
+				PySequence_Fast_GET_ITEM(seq2, y - 1),
 				Py_EQ);
 			if (comp == -1) {
 				free(column);
 				PyErr_SetString(PyExc_RuntimeError, "failed to compare objects");
-				return -1;
+				return WE_GOT_A_PROBLEM;
 			}
 			column[y] = MIN3(column[y] + 1, column[y - 1] + 1, last + (comp != 1));
 			last = old;
+		}
+		if (max_dist >= 0 && minimum(column, len2 + 1) > max_dist) {
+			free(column);
+			return OUT_OF_BOUND;
 		}
 	}
 	
 	free(column);
 	
-	return column[len1];
+	if (max_dist >= 0 && column[len2] > max_dist)
+		return OUT_OF_BOUND;
+	return column[len2];
 }
 
 
@@ -320,10 +380,11 @@ levenshtein(PyObject *self, PyObject *args, PyObject *kwargs)
 	PyObject *arg1, *arg2;
 	Py_ssize_t len1, len2, dist=-1;
 	int do_normalize = 0;
-	static char *keywords[] = {"arg1", "arg2", "normalized", NULL};
+	Py_ssize_t max_dist = -1;
+	static char *keywords[] = {"arg1", "arg2", "normalized", "max_dist", NULL};
 	
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs,
-		"OO|p:levenshtein", keywords, &arg1, &arg2, &do_normalize))
+		"OO|pn:levenshtein", keywords, &arg1, &arg2, &do_normalize, &max_dist))
 		return NULL;
 
 	if (PyUnicode_Check(arg1) && PyUnicode_Check(arg2)) {
@@ -337,9 +398,9 @@ levenshtein(PyObject *self, PyObject *args, PyObject *kwargs)
 		len2 = PyUnicode_GET_LENGTH(arg2);
 		
 		if (len1 > len2)
-			dist = uni_levenshtein(arg1, arg2, len1, len2);
+			dist = uni_levenshtein(arg1, arg2, len1, len2, max_dist);
 		else
-			dist = uni_levenshtein(arg2, arg1, len2, len1);
+			dist = uni_levenshtein(arg2, arg1, len2, len1, max_dist);
 	
 	}
 
@@ -365,9 +426,9 @@ levenshtein(PyObject *self, PyObject *args, PyObject *kwargs)
 		}
 	
 		if (len1 > len2)
-			dist = rich_levenshtein(arg1, arg2, len1, len2);
+			dist = rich_levenshtein(arg1, arg2, len1, len2, max_dist);
 		else
-			dist = rich_levenshtein(arg2, arg1, len2, len1);
+			dist = rich_levenshtein(arg2, arg1, len2, len1, max_dist);
 		
 		Py_DECREF(seq1);
 		Py_DECREF(seq2);
@@ -378,7 +439,7 @@ levenshtein(PyObject *self, PyObject *args, PyObject *kwargs)
 		return NULL;
 	}
 
-	if (dist == -1) /* error somewhere */
+	if (dist == WE_GOT_A_PROBLEM)
 		return NULL;
 	
 	if (do_normalize) {
