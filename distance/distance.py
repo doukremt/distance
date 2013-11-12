@@ -47,7 +47,7 @@ def hamming(seq1, seq2, normalized=False):
 	return dist
 
 
-def levenshtein(seq1, seq2, normalized=False, max_dist=2):
+def levenshtein(seq1, seq2, normalized=False, max_dist=-1):
 	"""Compute the Levenshtein distance between the two sequences `seq1` and `seq2`.
 	The Levenshtein distance is the minimum number of edit operations necessary for
 	transforming one sequence into the other. The edit operations allowed are:
