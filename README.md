@@ -1,30 +1,25 @@
 distance - Utilities for comparing sequences
 ============================================
 
-This package provides helpers for computing similarities between arbitrary sequences. Included metrics are:
-
-	* Levenshtein distance
-	* Hamming distance
-	* Jaccard distance
-	* Sorensen distance
-
-All distance computations are implemented in pure Python. Levenshtein and Hamming distances are also implemented in C.
+This package provides helpers for computing similarities between arbitrary sequences. Included metrics are Levenshtein, Hamming, Jaccard, and Sorensen distance, plus some bonuses. All distance computations are implemented in pure Python, and most of them are also implemented in C.
 
 
 Installation
 ------------
 
-If you don't want or need to use the C extension, just unpack the archive and run:
+If you don't want or need to use the C extension, just unpack the archive and run, as root:
 
 	# python setup.py install
 
-For the C extension to work, you need Python 3.3+, its headers files, and a C compiler (typically Microsoft Visual C++ 2010 on Windows, and GCC on Mac and Linux). On a Debian-like system, you can get all of these with:
+For the C extension to work, you need the Python source files, and a C compiler (typically Microsoft Visual C++ 2010 on Windows, and GCC on Mac and Linux). On a Debian-like system, you can get all of these with:
 
-	# apt-get install gcc python3.3-dev
+	# apt-get install gcc pythonX.X-dev
+
+where X.X is the number of your Python version.
 
 Then you should type:
 
-	# python3.3 setup.py install --with-c
+	# python setup.py install --with-c
 
 Note the use of the `--with-c` switch.
 
@@ -32,20 +27,14 @@ Note the use of the `--with-c` switch.
 Usage
 -----
 
-Fist import the module:
-
-	>>> import distance
-
-All functions provided take two arguments, which are the objects to compare. Arguments provided to `hamming` and `levenshtein` can be unicode strings, byte strings, lists, or tuples. `jaccard` and `sorensen` use sets, so you can pass in any iterable, at the condition that it is hashable.
-
-Typical use case is to compare single words for similarity:
+A common use case for this module is to compare single words for similarity:
 
 	>>> distance.levenshtein("lenvestein", "levenshtein")
 	3
 	>>> distance.hamming("hamming", "hamning")
 	1
 
-If there is not a one-to-one mapping between sounds and glyphs in your language, or if you want to compare not glyphs, but syllables, you can pass in tuples of chars:
+If there is not a one-to-one mapping between sounds and glyphs in your language, or if you want to compare not glyphs, but syllables or phonems, you can pass in tuples of characters:
 
 	>>> t1 = ("de", "ci", "si", "ve")
 	>>> t2 = ("de", "ri", "si", "ve")
@@ -59,11 +48,13 @@ Comparing lists of strings can also be useful for computing similarities between
 	>>> distance.levenshtein(sent1, sent2)
 	3
 
-If a `normalized` keyword parameter is supplied to `hamming` or `levenshtein` and evaluates to True, the return value of these functions will be a float between 0 and 1 inclusive, where 0 means identic, and 1 totally different:
+Hamming and Levenshtein distance can be normalized, so that the results of several distance measures can be meaningfully compared. Two strategies are available for Levenshtein: either the length of the shortest alignment between the sequences is taken as factor, or the length of the longer one. Example uses:
 
-	>>> distance.levenshtein("decide", "resize", normalized=True)
-	0.5
-	>>> distance.hamming("decide", "resize", normalized=True)
+	>>> distance.hamming("fat", "cat", normalized=True)
+	0.3333333333333333
+	>>> distance.nlevenshtein("abc", "acd", method=1)  # shortest alignment
+	0.6666666666666666
+	>>> distance.nlevenshtein("abc", "acd", method=2)  # longest alignment
 	0.5
 
 `jaccard` and `sorensen` return a normalized value per default:
@@ -73,31 +64,40 @@ If a `normalized` keyword parameter is supplied to `hamming` or `levenshtein` an
 	>>> distance.jaccard("decide", "resize")
 	0.7142857142857143
 
-Finally, there is a `fast_comp` function, which computes the distance between two strings up to a value of 2 included. If the distance between the strings is higher than that, -1 is returned. This function is of limited use, but on the other hand it is quite faster than `levenshtein`.
+As for the bonuses, there is a `fast_comp` function, which computes the distance between two strings up to a value of 2 included. If the distance between the strings is higher than that, -1 is returned. This function is of limited use, but on the other hand it is quite faster than `levenshtein`. There is also a `lcsubstrings` function which can be used to find the longest common substrings in two sequences.
 
-A corresponding iterator `ifast_comp` is provided, which comes handy for filtering from a long list of strings the one that resemble a given one, e.g.:
+Finally, two convenience iterators `ilevenshtein` and `ifast_comp` are provided, which are intended to be used for filtering from a long list of sequences the ones that are close to a reference one. They both return a series of tuples (distance, sequence). Example:
 
-	>>> g = ifast_comp("foo", ["fo", "bar", "foob", "foo", "foobaz"])
-	>>> sorted(g)
+	>>> tokens = ["fo", "bar", "foob", "foo", "fooba", "foobar"]
+	>>> sorted(distance.ifast_comp("foo", tokens))
+	[(0, 'foo'), (1, 'fo'), (1, 'foob'), (2, 'fooba')]
+	>>> sorted(distance.ilevenshtein("foo", tokens, max_dist=1))
 	[(0, 'foo'), (1, 'fo'), (1, 'foob')]
 
-`ifast_comp` can handle 1 million tokens without a problem.
+`ifast_comp` is particularly efficient, and can handle 1 million tokens without a problem.
 
-`fast_comp` and `ifast_comp` take an optional keyword argument `transpositions`; if its value evaluates to `True` (this is not the default), transpositions will be taken into account for the computation of the edit distance.
-
-See the functions documentation (`help(funcname)`) for more details.
+For more informations, see the functions documentation (`help(funcname)`).
 
 Have fun!
 
 
-Implementation details
-----------------------
+Changelog
+---------
 
-In the C implementation, unicode strings are handled separately from the other sequence objects. Computing similarities between lists, tuples, and byte strings is likely to be slower.
+20/11/13:
+* Switched back to using the to-be-deprecated Python unicode api. Good news is that this makes the
+C extension compatible with Python 2.7+, and that distance computations on unicode strings is now
+much faster.
+* Added a C version of `lcsubstrings`.
+* Added a new method for computing normalized Levenshtein distance.
+* Added some tests.
 
-05/11/13: Added Sorensen and Jaccard metrics, fixed memory issue in Levenshtein.
+12/11/13:
+Expanded `fast_comp` (formerly `quick_levenshtein`) so that it can handle transpositions.
+Fixed variable interversions in (C) `levenshtein` which produced sometimes strange results.
 
-10/11/13: Added `quick_levenshtein` and `iquick_levenshtein`.
+10/11/13:
+Added `quick_levenshtein` and `iquick_levenshtein`.
 
-12/11/13: Expanded `fast_comp` (formerly `quick_levenshtein`) so that it can handle transpositions.
-          Fixed variable interversions in (C) `levenshtein` which produced sometimes strange results.
+05/11/13:
+Added Sorensen and Jaccard metrics, fixed memory issue in Levenshtein.

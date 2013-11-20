@@ -17,56 +17,104 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-import os, sys
+import os, sys, ast, _ast, re
 from distutils.core import setup, Extension
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
-pkg_dir = os.path.join(this_dir, "distance")
+pkg_dir  = os.path.join(this_dir, "distance")
+cpkg_dir  = os.path.join(this_dir, "cdistance")
+
+ctypes = ["unicode", "byte", "array"]
+
+cfunctions = {
+	"levenshtein": ["levenshtein", "nlevenshtein"],
+	"hamming": ["hamming"],
+	"lcsubstrings": ["lcsubstrings"],
+	"fastcomp": ["fastcomp"],
+}
+
+sequence_compare = """\
+#define SEQUENCE_COMPARE(s1, i1, s2, i2) \\
+(PyObject_RichCompareBool( \\
+	PySequence_Fast_GET_ITEM((s1), (i1)), \\
+	PySequence_Fast_GET_ITEM((s2), (i2)), \\
+	Py_EQ) \\
+)
+"""
+
+def make_c_doc():
+	buff = []
+	py_sources = [f for f in os.listdir(pkg_dir) if f.endswith('.py')]
+	for file in py_sources:
+		with open(os.path.join(pkg_dir, file)) as f:
+			content = f.read()
+		tree = ast.parse(content)
+		for doc_string in parse_tree(tree, content):
+			buff.append(doc_string)
+	join_str = 2 * '\n'
+	return join_str.join(buff) + '\n'
 
 
-def show_c_doc():
-	exclude = {"jaccard", "sorensen"}
-	import ast, _ast, re
-	with open(os.path.join(pkg_dir, "distance.py")) as f:
-		content = f.read()
-	tree = ast.parse(content)
+def parse_tree(tree, content):
 	for node in ast.iter_child_nodes(tree):
-		if isinstance(node, _ast.FunctionDef) and not node.name in exclude:
-			doc = ast.get_docstring(node)
-			if not doc:
-				continue
-			defin = re.findall("def\s%s\s*(.+?)\s*:" % node.name, content)
-			assert defin
-			defin = node.name + defin[0] + 2 * '\\n\\\n'
-			doc = doc.replace('\n', '\\n\\\n').replace('"', '\\"').replace(8 * ' ', 4 * ' ')
-			doc = 'PyDoc_STRVAR(%s_doc,\n"%s%s\\\n");' % (node.name, defin, doc)
-			sys.stderr.write(doc + 2 * '\n')
+		if not isinstance(node, _ast.FunctionDef):
+			continue
+		doc_string = ast.get_docstring(node)
+		if not doc_string:
+			continue
+		func_def = re.findall("def\s%s\s*(.+?)\s*:" % node.name, content)
+		assert func_def and len(func_def) == 1
+		func_def = node.name + func_def[0] + 2 * '\\n\\\n'
+		doc_string = doc_string.replace('\n', '\\n\\\n').replace('"', '\\"')
+		doc_string = doc_string.replace('\n' + 8 * ' ', '\n' + 4 * ' ')
+		doc_string = '#define %s_doc \\\n"%s%s"\n' % (node.name, func_def, doc_string)
+		yield doc_string
 
 
-with open(os.path.join(this_dir, "README.md")) as f:
-    long_description = f.read()
+def format_header():
+	yield sequence_compare
+	for cfile, cfuncs in cfunctions.items():
+		for ctype in ctypes:
+			if ctype == "array":
+				yield("#define SEQUENCE_COMP SEQUENCE_COMPARE")
+			yield('#define unicode %(type)s' % dict(type=ctype))
+			for cfunc in cfuncs:
+				yield("#define %(function)s %(tcode)s%(function)s" % dict(function=cfunc, tcode=ctype[0]))
+			yield('#include "%(file)s.c"' % dict(file=cfile))
+			yield("#undef unicode")
+			for cfunc in cfuncs:
+				yield("#undef %(function)s" % dict(function=cfunc))
+			if ctype == "array":
+				yield("#undef SEQUENCE_COMP")
+			yield("")
+
+
+def prepare():
+	with open(os.path.join(cpkg_dir, "includes.h"), "w") as f:
+		f.write(make_c_doc())
+		f.write(4 * '\n')
+		f.write('\n'.join(format_header()))
+
 
 args = sys.argv[1:]
-
-if "print-doc" in args:
-	show_c_doc()
+if "prepare" in args:
+	prepare()
 	sys.exit()
 
 if "--with-c" in args:
 	args.remove("--with-c")
-	if sys.version_info[:2] < (3, 3):
-		sys.stderr.write("Python 3.3+ is necessary for the C extension to work. " \
-			"Your version is %s\n" % sys.version)
-		sys.exit(1)
-	ext_modules = [Extension('distance.cdistance', sources=["distance/distance.c"])]
+	ext_modules = [Extension('distance.cdistance', sources=["cdistance/distance.c"])]
 else:
 	sys.stderr.write("notice: no C support available\n")
 	ext_modules = []
 
+with open(os.path.join(this_dir, "README.md")) as f:
+    long_description = f.read()
+
 setup (
     name = 'Distance',
-    version = '0.1.2',
-    description = 'Utilities for computing similarities between sequences',
+    version = '0.1.3',
+    description = 'Utilities for comparing sequences',
     long_description = long_description,
     author='Michaël Meyer',
     author_email='michaelnm.meyer@gmail.com',

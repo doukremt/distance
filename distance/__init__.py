@@ -1,14 +1,14 @@
 "Utilities for comparing sequences"
 
-__all__ = ["hamming", "levenshtein", "jaccard", "sorensen", "quick_levenshtein",
-	"iquick_levenshtein", "fast_comp", "ifast_comp", "lcsubstrings"]
+__all__ = ["hamming", "levenshtein", "nlevenshtein", "jaccard", "sorensen",
+	"fast_comp", "lcsubstrings", "ilevenshtein", "ifast_comp"]
 
 try:
 	from .cdistance import *
 except ImportError:
-	from .distance import *
+	from ._pyimports import *
 
-from .distance import jaccard, sorensen, lcsubstrings
+from ._pyimports import jaccard, sorensen
 
 def quick_levenshtein(str1, str2):
 	return fast_comp(str1, str2, transpositions=False)
