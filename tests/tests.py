@@ -213,7 +213,12 @@ def ilevenshtein(func, t, **kwargs):
 
 def ifast_comp(func, t, **kwargs):
 	itors_common(func, t, **kwargs)
-
+	#transpositions
+	g = func(t("abc"), [t("bac")], transpositions=False)
+	assert next(g) == (2, t('bac'))
+	g = func(t("abc"), [t("bac")], transpositions=True)
+	assert next(g) == (1, t("bac"))
+	
 
 write = lambda s: sys.stderr.write(s + '\n')
 
