@@ -477,11 +477,13 @@ ifastcomp_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 	char seqtype;
 	sequence seq1;
 	Py_ssize_t len1;
-
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|p:ifast_comp",
+	
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|O:ifast_comp",
 		keywords, &arg1, &arg2, &transpositions))
 		return NULL;
-
+	if (otr && (transpositions = PyObject_IsTrue(otr)) == -1)
+		return NULL;
+	
 	if ((seqtype = get_sequence(arg1, &seq1, &len1, '\0')) == '\0')
 		return NULL;
 	
